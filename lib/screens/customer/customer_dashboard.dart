@@ -1,21 +1,28 @@
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
-import 'dart:convert';
+import 'package:qrdapp/widgets/search_bar_widget.dart';
+import 'package:qrdapp/widgets/cart_button_widget.dart';
+import 'package:qrdapp/widgets/category_list_widget.dart';
+import 'package:qrdapp/widgets/special_section_widget.dart';
+import 'package:qrdapp/widgets/popular_products_widget.dart';
+import 'package:qrdapp/screens/products/product_list_screen.dart';
+import 'package:qrdapp/screens/products/products_detail_screen.dart';
+import 'package:qrdapp/services/categories/categories_service.dart';
+import 'package:qrdapp/services/auth/auth_service.dart';
 
-class CustomerDashboard extends StatefulWidget {
-  const CustomerDashboard({super.key});
+/// Main customer dashboard screen
+class CustomerDashboardScreen extends StatefulWidget {
+  const CustomerDashboardScreen({super.key});
 
   @override
-  State<CustomerDashboard> createState() => _CustomerDashboardState();
+  State<CustomerDashboardScreen> createState() =>
+      _CustomerDashboardScreenState();
 }
 
-class _CustomerDashboardState extends State<CustomerDashboard> {
+class _CustomerDashboardScreenState extends State<CustomerDashboardScreen> {
   int _selectedIndex = 0;
-
   List<dynamic> categories = [];
   Map<String, List<dynamic>> categoryProducts = {};
-  final int merchantID = 1; // Replace this
-  final String backendURL = "http:/192.168.100.42:8080"; // Replace this
+  bool isLoading = false;
 
   @override
   void initState() {
@@ -29,178 +36,152 @@ class _CustomerDashboardState extends State<CustomerDashboard> {
     });
   }
 
+  /// Fetch all categories and their associated products
   Future<void> fetchCategoriesAndProducts() async {
-    final res = await http.get(Uri.parse("$backendURL/categories/merchant/$merchantID"));
-    if (res.statusCode == 200) {
-      final categoryData = jsonDecode(res.body);
-      setState(() {
-        categories = categoryData;
-      });
-
-      for (var category in categoryData) {
-        final id = category['_id'];
-        final productRes = await http.get(Uri.parse("$backendURL/categories/$id/products"));
-        if (productRes.statusCode == 200) {
-          setState(() {
-            categoryProducts[id] = jsonDecode(productRes.body);
-          });
+    setState(() => isLoading = true);
+    try {
+      final fetched = await CategoryService.fetchCategories();
+      setState(() => categories = fetched);
+      for (var cat in fetched) {
+        final id = cat['ID']?.toString();
+        if (id != null) {
+          final products = await CategoryService.fetchProductsByCategory(id);
+          setState(() => categoryProducts[id] = products);
         }
       }
+    } catch (e) {
+      debugPrint('Error fetching categories/products: $e');
+    } finally {
+      setState(() => isLoading = false);
     }
   }
 
-  Widget _buildFeaturedTab() {
-    return SafeArea(
-      child: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          // Search bar
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: const TextField(
-              decoration: InputDecoration(
-                hintText: "Search product",
-                border: InputBorder.none,
-                icon: Icon(Icons.search),
-              ),
-            ),
-          ),
-          const SizedBox(height: 16),
-
-          // Categories
-          SizedBox(
-            height: 80,
-            child: ListView(
-              scrollDirection: Axis.horizontal,
-              children: categories.map((cat) {
-                return Padding(
-                  padding: const EdgeInsets.only(right: 12),
-                  child: Column(
-                    children: [
-                      CircleAvatar(
-                        radius: 22,
-                        backgroundColor: Colors.orange[100],
-                        child: const Icon(Icons.category),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(cat['name'], style: const TextStyle(fontSize: 12)),
-                    ],
-                  ),
-                );
-              }).toList(),
-            ),
-          ),
-
-          const SizedBox(height: 24),
-          const Text("Special for you", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-          const SizedBox(height: 12),
-
-          SizedBox(
-            height: 120,
-            child: ListView(
-              scrollDirection: Axis.horizontal,
-              children: categories.map((cat) {
-                return Container(
-                  width: 160,
-                  margin: const EdgeInsets.only(right: 12),
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(cat['name'], style: const TextStyle(fontWeight: FontWeight.bold)),
-                      const Spacer(),
-                      Text("${categoryProducts[cat['_id']]?.length ?? 0} products", style: const TextStyle(color: Colors.grey)),
-                    ],
-                  ),
-                );
-              }).toList(),
-            ),
-          ),
-
-          const SizedBox(height: 24),
-          const Text("Popular Product", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-          const SizedBox(height: 12),
-
-          if (categories.isNotEmpty && categoryProducts[categories[0]['_id']] != null)
-            SizedBox(
-              height: 180,
-              child: ListView(
-                scrollDirection: Axis.horizontal,
-                children: categoryProducts[categories[0]['_id']]!
-                    .map((product) => Container(
-                          width: 140,
-                          margin: const EdgeInsets.only(right: 12),
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const Expanded(child: Icon(Icons.image, size: 60)),
-                              const SizedBox(height: 8),
-                              Text(product['name'] ?? 'No name',
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(fontWeight: FontWeight.bold)),
-                              Text("Ksh ${product['price']}", style: const TextStyle(color: Colors.green)),
-                            ],
-                          ),
-                        ))
-                    .toList(),
-              ),
-            ),
-        ],
-      ),
-    );
+  /// Handles user logout logic and navigation
+  Future<void> _logoutUser() async {
+    await AuthService.logout();
+    if (!mounted) return;
+    Navigator.pushReplacementNamed(
+        context, '/login'); // ⬅️ Ensure this route exists in your app
   }
 
-  final List<Widget> _pages = [];
-
-  @override
-  Widget build(BuildContext context) {
-    _pages.clear(); // rebuild list with current featured content
-    _pages.add(_buildFeaturedTab());
-    _pages.addAll([
-      const Center(child: Text("Search")),
-      const Center(child: Text("Add Item")),
-      const Center(child: Text("Notifications")),
-      const Center(child: Text("Profile")),
-    ]);
-
-    return Scaffold(
-      body: _pages[_selectedIndex],
-      bottomNavigationBar: Container(
-        decoration: BoxDecoration(
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.15),
-              blurRadius: 10,
-              offset: const Offset(0, -2),
+  /// Pages displayed in the dashboard, depending on selected tab
+  List<Widget> get pages => [
+        // 🏠 Featured/Home Page
+        ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
+            Row(
+              children: [
+                Expanded(child: SearchBarWidget()),
+                const SizedBox(width: 8),
+                CartButtonWidget(itemCount: 3),
+              ],
+            ),
+            const SizedBox(height: 16),
+            CategoryListWidget(
+              categories: categories,
+              onTap: (cat) {
+                final id = cat['ID']?.toString();
+                final merchant = cat['merchant_id']?.toString();
+                if (id != null && merchant != null) {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => ProductListScreen(merchantId: merchant),
+                    ),
+                  );
+                }
+              },
+            ),
+            const SizedBox(height: 24),
+            const Text('Special for you',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 12),
+            SpecialSectionWidget(
+              categories: categories,
+              categoryProducts: categoryProducts,
+              onTap: (cat) {
+                final id = cat['ID']?.toString();
+                final merchant = cat['merchant_id']?.toString();
+                if (id != null && merchant != null) {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => ProductListScreen(merchantId: merchant),
+                    ),
+                  );
+                }
+              },
+            ),
+            const SizedBox(height: 24),
+            const Text('Popular Products',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 12),
+            PopularProductsWidget(
+              categories: categories,
+              categoryProducts: categoryProducts,
+              onTap: (product) {
+                final id = product['ID']?.toString();
+                if (id != null) {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => ProductDetailScreen(productId: id),
+                    ),
+                  );
+                }
+              },
             ),
           ],
         ),
-        child: BottomNavigationBar(
-          type: BottomNavigationBarType.fixed,
+
+        // 🔍 Search Placeholder
+        const Center(child: Text('Search')),
+
+        // ➕ Add Item Placeholder
+        const Center(child: Text('Add Item')),
+
+        // 🔔 Notifications Placeholder
+        const Center(child: Text('Notifications')),
+
+        // 👤 Profile Page with Logout Button
+        Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Text('Welcome to your profile!',
+                  style: TextStyle(fontSize: 18)),
+              const SizedBox(height: 20),
+              ElevatedButton.icon(
+                onPressed: _logoutUser,
+                icon: const Icon(Icons.logout),
+                label: const Text('Logout'),
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+              ),
+            ],
+          ),
+        ),
+      ];
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      child: Scaffold(
+        body: isLoading
+            ? const Center(child: CircularProgressIndicator())
+            : pages[_selectedIndex],
+        bottomNavigationBar: BottomNavigationBar(
           currentIndex: _selectedIndex,
           onTap: _onItemTapped,
-          selectedItemColor: Colors.blueAccent,
-          unselectedItemColor: Colors.grey,
+          type: BottomNavigationBarType.fixed,
           items: const [
-            BottomNavigationBarItem(icon: Icon(Icons.star_border), label: 'Featured'),
+            BottomNavigationBarItem(
+                icon: Icon(Icons.star_border), label: 'Featured'),
             BottomNavigationBarItem(icon: Icon(Icons.search), label: 'Search'),
-            BottomNavigationBarItem(icon: Icon(Icons.add_box_outlined), label: 'Add'),
-            BottomNavigationBarItem(icon: Icon(Icons.notifications_none), label: 'Notifications'),
-            BottomNavigationBarItem(icon: Icon(Icons.person_outline), label: 'Profile'),
+            BottomNavigationBarItem(icon: Icon(Icons.add_box), label: 'Add'),
+            BottomNavigationBarItem(
+                icon: Icon(Icons.notifications), label: 'Notifications'),
+            BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profile'),
           ],
         ),
       ),
