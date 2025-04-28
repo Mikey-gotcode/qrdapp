@@ -4,7 +4,7 @@ class CategoryListWidget extends StatelessWidget {
   final List<dynamic> categories;
   final void Function(dynamic cat) onTap;
 
-  const CategoryListWidget({required this.categories, required this.onTap});
+  const CategoryListWidget({super.key, required this.categories, required this.onTap});
 
   @override
   Widget build(BuildContext context) => SizedBox(

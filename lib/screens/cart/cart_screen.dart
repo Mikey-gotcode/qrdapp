@@ -65,7 +65,7 @@ class _CartScreenState extends State<CartScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Your Cart'),
-        leading: BackButton(),
+        leading: const BackButton(),
         backgroundColor: Colors.white,
         foregroundColor: Colors.black,
         elevation: 1,
@@ -185,7 +185,7 @@ class _CartScreenState extends State<CartScreen> {
               Container(
                 padding: const EdgeInsets.symmetric(
                     vertical: 16, horizontal: 24),
-                decoration: BoxDecoration(
+                decoration: const BoxDecoration(
                   color: Colors.white,
                   boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 8)],
                 ),

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../services/auth/auth_service.dart';
+import '../../services/auth/auth_storage.dart';
 import '../customer/customer_dashboard.dart';
 import '../merchant/merchant_dashboard.dart';
 
@@ -38,11 +39,18 @@ class _LoginScreenState extends State<LoginScreen> {
 
       if (result['message'] == 'Login successful') {
         final role = result['role'];
+        final userId = result['userId'] as int?; // Get userId from login response
+        await SecureStorageService.getUserId(); // Save userId
+
         if (role == 'customer') {
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(builder: (context) => const CustomerDashboardScreen()),
-          );
+          if (userId != null) {
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(builder: (context) => CustomerDashboardScreen(customerId: userId)),
+            );
+          } else {
+            setState(() => _errorMessage = 'User ID not found after login.');
+          }
         } else if (role == 'merchant') {
           Navigator.pushReplacement(
             context,
@@ -78,7 +86,6 @@ class _LoginScreenState extends State<LoginScreen> {
                   textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 32),
-
                 TextField(
                   controller: _emailController,
                   decoration: const InputDecoration(
@@ -88,7 +95,6 @@ class _LoginScreenState extends State<LoginScreen> {
                   keyboardType: TextInputType.emailAddress,
                 ),
                 const SizedBox(height: 16),
-
                 TextField(
                   controller: _passwordController,
                   decoration: const InputDecoration(
@@ -98,7 +104,6 @@ class _LoginScreenState extends State<LoginScreen> {
                   obscureText: true,
                 ),
                 const SizedBox(height: 24),
-
                 if (_errorMessage != null)
                   Text(
                     _errorMessage!,
@@ -106,7 +111,6 @@ class _LoginScreenState extends State<LoginScreen> {
                     textAlign: TextAlign.center,
                   ),
                 const SizedBox(height: 12),
-
                 ElevatedButton(
                   onPressed: _isLoading ? null : _login,
                   child: _isLoading

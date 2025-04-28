@@ -3,13 +3,14 @@ import 'screens/auth/login_screen.dart';
 import 'screens/customer/customer_dashboard.dart';
 import 'screens/cart/cart_screen.dart';
 import 'services/auth/auth_service.dart';
+import 'services/auth/auth_storage.dart'; // Import SecureStorageService
 
 void main() {
   runApp(const MyApp());
 }
 
 class MyApp extends StatelessWidget {
-  const MyApp({Key? key}) : super(key: key);
+  const MyApp({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -24,7 +25,7 @@ class MyApp extends StatelessWidget {
           );
         } else if (settings.name == '/dashboard') {
           return MaterialPageRoute(
-            builder: (context) => const CustomerDashboardScreen(),
+            builder: (context) => const DashboardDecider(),
           );
         } else if (settings.name == '/login') {
           return MaterialPageRoute(
@@ -59,7 +60,10 @@ class _SplashDeciderState extends State<SplashDecider> {
     await Future.delayed(const Duration(seconds: 1));
 
     if (isLoggedIn) {
-      Navigator.pushReplacementNamed(context, '/dashboard');
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (context) => const DashboardDecider()), // Use MaterialPageRoute
+      );
     } else {
       Navigator.pushReplacementNamed(context, '/login');
     }
@@ -72,5 +76,38 @@ class _SplashDeciderState extends State<SplashDecider> {
         child: CircularProgressIndicator(), // Splash or loading indicator
       ),
     );
+  }
+}
+
+class DashboardDecider extends StatefulWidget {
+  const DashboardDecider({super.key});
+
+  @override
+  State<DashboardDecider> createState() => _DashboardDeciderState();
+}
+
+class _DashboardDeciderState extends State<DashboardDecider> {
+  int? _customerId;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadCustomerId();
+  }
+
+  Future<void> _loadCustomerId() async {
+    final userId = await SecureStorageService.getUserId();
+    setState(() {
+      _customerId = userId;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_customerId == null) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    } else {
+      return CustomerDashboardScreen(customerId: _customerId!);
+    }
   }
 }

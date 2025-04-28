@@ -8,10 +8,15 @@ import 'package:qrdapp/screens/products/product_list_screen.dart';
 import 'package:qrdapp/screens/products/products_detail_screen.dart';
 import 'package:qrdapp/services/categories/categories_service.dart';
 import 'package:qrdapp/services/auth/auth_service.dart';
+import 'package:qrdapp/services/addresses/addresses_services.dart'; // Import location service
+import 'package:qrdapp/services/products/products_service.dart';
+import 'package:qrdapp/models/location.dart';
+import 'package:qrdapp/screens/notifications/notification_management_screen.dart'; // Import NotificationManagementScreen
 
 /// Main customer dashboard screen
 class CustomerDashboardScreen extends StatefulWidget {
-  const CustomerDashboardScreen({super.key});
+  final int customerId; // Receive customerId
+  const CustomerDashboardScreen({super.key, required this.customerId});
 
   @override
   State<CustomerDashboardScreen> createState() =>
@@ -23,11 +28,54 @@ class _CustomerDashboardScreenState extends State<CustomerDashboardScreen> {
   List<dynamic> categories = [];
   Map<String, List<dynamic>> categoryProducts = {};
   bool isLoading = false;
+  String? _currentLocation;
+  List<LocationModel> _locations = []; // Use the Location model
+  String? _selectedLocationName; // Store selected location name
 
   @override
   void initState() {
     super.initState();
-    fetchCategoriesAndProducts();
+    _loadLocations(); // Load locations from service
+    _getCurrentLocation(); //get current location
+  }
+
+  Future<void> _loadLocations() async {
+    setState(() => isLoading = true);
+    try {
+      _locations = await AddressService.getAllLocations();
+      // Initialize selected location with a default value or user's current location if available.
+      if (_locations.isNotEmpty) {
+        setState(() {
+          _selectedLocationName = _locations[0].name; // Default to first location
+        });
+      }
+    } catch (e) {
+      debugPrint('Error fetching locations: $e');
+      // Handle error (e.g., show a message to the user)
+    } finally {
+      setState(() => isLoading = false);
+    }
+  }
+
+  Future<void> _getCurrentLocation() async {
+    setState(() => isLoading = true);
+    try {
+      // Simulate getting the user's current location.  Replace this with a real implementation.
+      //  _currentLocation = await LocationService.getCurrentLocation();  //removed await
+      _currentLocation = "Nairobi"; //Hardcoded
+      if (_currentLocation != null) {
+        setState(() {
+          _selectedLocationName =
+              "Current Location ($_currentLocation)"; //set the dropdown value
+        });
+      }
+      fetchCategoriesAndProductsByLocation(_currentLocation!);
+    } catch (e) {
+      debugPrint('Error getting current location: $e');
+      // Handle error (e.g., show a message)
+    } finally {
+      setState(() => isLoading = false);
+    }
   }
 
   void _onItemTapped(int index) {
@@ -36,21 +84,32 @@ class _CustomerDashboardScreenState extends State<CustomerDashboardScreen> {
     });
   }
 
-  /// Fetch all categories and their associated products
-  Future<void> fetchCategoriesAndProducts() async {
+  /// Fetch categories and products based on the selected location
+  Future<void> fetchCategoriesAndProductsByLocation(String locationName) async {
     setState(() => isLoading = true);
     try {
-      final fetched = await CategoryService.fetchCategories();
-      setState(() => categories = fetched);
-      for (var cat in fetched) {
-        final id = cat['ID']?.toString();
-        if (id != null) {
-          final products = await CategoryService.fetchProductsByCategory(id);
-          setState(() => categoryProducts[id] = products);
+      final fetchedCategories =
+          await CategoryService.fetchCategoriesByLocation(locationName); // Pass the name
+      setState(() => categories = fetchedCategories);
+
+      categoryProducts.clear(); // Clear previous products
+
+      // Instead of fetching products by category, fetch all products for the location
+      final allProductsInLocation =
+          await ProductService.fetchProductsByLocation(locationName);
+
+      // Now, organize these products by their category
+      for (var product in allProductsInLocation) {
+        final categoryId = product['category_id']?.toString();
+        if (categoryId != null) {
+          if (!categoryProducts.containsKey(categoryId)) {
+            categoryProducts[categoryId] = [];
+          }
+          categoryProducts[categoryId]!.add(product);
         }
       }
     } catch (e) {
-      debugPrint('Error fetching categories/products: $e');
+      debugPrint('Error fetching categories/products by location: $e');
     } finally {
       setState(() => isLoading = false);
     }
@@ -60,79 +119,126 @@ class _CustomerDashboardScreenState extends State<CustomerDashboardScreen> {
   Future<void> _logoutUser() async {
     await AuthService.logout();
     if (!mounted) return;
-    Navigator.pushReplacementNamed(
-        context, '/login'); // ⬅️ Ensure this route exists in your app
+    Navigator.pushReplacementNamed(context, '/login');
   }
 
   /// Pages displayed in the dashboard, depending on selected tab
   List<Widget> get pages => [
-        // 🏠 Featured/Home Page
-        ListView(
-          padding: const EdgeInsets.all(16),
-          children: [
-            Row(
-              children: [
-                Expanded(child: SearchBarWidget()),
-                const SizedBox(width: 8),
-                CartButtonWidget(itemCount: 3),
-              ],
-            ),
-            const SizedBox(height: 16),
-            CategoryListWidget(
-              categories: categories,
-              onTap: (cat) {
-                final id = cat['ID']?.toString();
-                final merchant = cat['merchant_id']?.toString();
-                if (id != null && merchant != null) {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => ProductListScreen(merchantId: merchant),
-                    ),
-                  );
-                }
-              },
-            ),
-            const SizedBox(height: 24),
-            const Text('Special for you',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 12),
-            SpecialSectionWidget(
-              categories: categories,
-              categoryProducts: categoryProducts,
-              onTap: (cat) {
-                final id = cat['ID']?.toString();
-                final merchant = cat['merchant_id']?.toString();
-                if (id != null && merchant != null) {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => ProductListScreen(merchantId: merchant),
-                    ),
-                  );
-                }
-              },
-            ),
-            const SizedBox(height: 24),
-            const Text('Popular Products',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 12),
-            PopularProductsWidget(
-              categories: categories,
-              categoryProducts: categoryProducts,
-              onTap: (product) {
-                final id = product['ID']?.toString();
-                if (id != null) {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => ProductDetailScreen(productId: id),
-                    ),
-                  );
-                }
-              },
-            ),
-          ],
+        // 🏠 Featured/Home Page with Pull-to-Refresh
+        RefreshIndicator(
+          onRefresh: () async {
+            if (_selectedLocationName != null) {
+              String locationName = _selectedLocationName!;
+              if (locationName.startsWith("Current Location")) {
+                locationName = _currentLocation!;
+              }
+              await fetchCategoriesAndProductsByLocation(locationName);
+            }
+          },
+          child: ListView(
+            padding: const EdgeInsets.all(16),
+            children: [
+              Row(
+                children: [
+                  Expanded(child: SearchBarWidget()),
+                  const SizedBox(width: 8),
+                  // Location Dropdown
+                  DropdownButton<String>(
+                    value: _selectedLocationName,
+                    onChanged: (String? newValue) {
+                      if (newValue != null) {
+                        setState(() {
+                          _selectedLocationName = newValue;
+                        });
+                        String locationName = newValue;
+                        if (newValue.startsWith("Current Location")) {
+                          locationName = _currentLocation!;
+                        }
+                        fetchCategoriesAndProductsByLocation(locationName);
+                      }
+                    },
+                    items: [
+                      DropdownMenuItem<String>(
+                        value: "Current Location ($_currentLocation)",
+                        child: const Text("Current Location"),
+                      ),
+                      ..._locations
+                          .map<DropdownMenuItem<String>>((LocationModel location) {
+                        return DropdownMenuItem<String>(
+                          value: location.name,
+                          child: Text(location.name ?? ''),
+                        );
+                      }),
+                    ],
+                  ),
+                  const SizedBox(width: 8),
+                  const CartButtonWidget(),
+                ],
+              ),
+              const SizedBox(height: 16),
+              CategoryListWidget(
+                categories: categories,
+                onTap: (cat) {
+                  final id = cat['ID']?.toString();
+                  final merchant = cat['merchant_id']?.toString();
+                  if (id != null && merchant != null) {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => ProductListScreen(
+                          merchantId: merchant,
+                          categoryId: id,
+                          selectedLocation: _selectedLocationName,
+                          currentLocation: _currentLocation,
+                        ),
+                      ),
+                    );
+                  }
+                },
+              ),
+              const SizedBox(height: 24),
+              SpecialSectionWidget(
+                categories: categories,
+                categoryProducts: categoryProducts,
+                onTap: (cat) {
+                  final id = cat['ID']?.toString();
+                  final merchant = cat['merchant_id']?.toString();
+                  if (id != null && merchant != null) {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => ProductListScreen(
+                          merchantId: merchant,
+                          categoryId: id,
+                          selectedLocation: _selectedLocationName,
+                          currentLocation: _currentLocation,
+                        ),
+                      ),
+                    );
+                  }
+                },
+              ),
+              const SizedBox(height: 24),
+              const Text('Popular Products',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 12),
+              PopularProductsWidget(
+                categories: categories,
+                categoryProducts: categoryProducts,
+                onTap: (product) {
+                  final id = product['ID']?.toString();
+                  if (id != null) {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => ProductDetailScreen(productId: id),
+                      ),
+                    );
+                  }
+                },
+              ),
+            ],
+          ),
         ),
 
         // 🔍 Search Placeholder
@@ -141,8 +247,8 @@ class _CustomerDashboardScreenState extends State<CustomerDashboardScreen> {
         // ➕ Add Item Placeholder
         const Center(child: Text('Add Item')),
 
-        // 🔔 Notifications Placeholder
-        const Center(child: Text('Notifications')),
+        // 🔔 Notifications Screen
+        NotificationManagementScreen(customerId: widget.customerId),
 
         // 👤 Profile Page with Logout Button
         Center(

@@ -6,7 +6,7 @@ class SpecialSectionWidget extends StatelessWidget {
   final void Function(dynamic cat) onTap;
 
   const SpecialSectionWidget(
-      {required this.categories,
+      {super.key, required this.categories,
       required this.categoryProducts,
       required this.onTap});
 

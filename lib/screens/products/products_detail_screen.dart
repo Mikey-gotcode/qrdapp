@@ -83,7 +83,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
             return const Center(child: CircularProgressIndicator());
           }
           if (snapshot.hasError || !snapshot.hasData || snapshot.data == null) {
-            return Center(child: Text('Error loading product'));
+            return const Center(child: Text('Error loading product'));
           }
 
           final product = snapshot.data!;

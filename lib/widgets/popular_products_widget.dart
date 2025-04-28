@@ -9,15 +9,18 @@ class PopularProductsWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (categories.isEmpty) return const SizedBox.shrink();
-    final products = categoryProducts[categories[0]['ID']?.toString()] ?? [];
+    if (categoryProducts.isEmpty) return const SizedBox.shrink();
+
+    // Flatten the map of category products into a single list of all products
+    final List<dynamic> allPopularProducts = categoryProducts.values.expand((list) => list).toList();
+
     return SizedBox(
       height: 180,
       child: ListView.builder(
         scrollDirection: Axis.horizontal,
-        itemCount: products.length,
+        itemCount: allPopularProducts.length,
         itemBuilder: (_, i) {
-          final p = products[i];
+          final p = allPopularProducts[i];
           final name = p['name'] ?? 'No name';
           final price = p['price']?.toString() ?? '0';
           return GestureDetector(

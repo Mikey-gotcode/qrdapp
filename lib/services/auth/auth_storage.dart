@@ -22,8 +22,12 @@ static Future<void> saveUserId(int userId) async {
 }
 
 
-  static Future<String?> getUserId() async {
-    return await _storage.read(key: 'userId');
+  static Future<int?> getUserId() async {
+    final userIdString = await _storage.read(key: 'userId');
+    if (userIdString == null) {
+      return null;
+    }
+    return int.tryParse(userIdString);
   }
 
   static Future<void> clearUserId() async {
